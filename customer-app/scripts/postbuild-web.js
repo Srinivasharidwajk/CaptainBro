@@ -9,6 +9,16 @@ if (!fs.existsSync(distDir)) {
 const htaccessContent = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # 1. Enforce HTTPS
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # 2. Redirect WWW to Non-WWW (removes www to avoid SSL mismatch)
+  RewriteCond %{HTTP_HOST} ^www\\.(.+)$ [NC]
+  RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
+
+  # 3. Single Page Application (SPA) routing
   RewriteRule ^index\\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
