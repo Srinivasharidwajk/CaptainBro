@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment files
+.env
+.env*.local
+**/.env
+**/.env*.local
+
+# Expo & Mobile
+.expo/
+**/.expo/
+.gradle/
+**/.gradle/
+android/app/build/
+**/android/app/build/
+ios/Pods/
+**/ios/Pods/
+ios/build/
+**/ios/build/
+expo-env.d.ts
+**/expo-env.d.ts
+
+# Production / Build output
+dist/
+**/dist/
+build/
+**/build/
+web-build/
+**/web-build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

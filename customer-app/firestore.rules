@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && userDocExists() && (
+        getUserData().role == 'admin' || 
+        getUserData().role == 'super_admin'
+      );
+    }
+
+    function isRider() {
+      return isAuthenticated() && userDocExists() && getUserData().role == 'rider';
+    }
+
+    // Products: Catalog is publicly readable, writable strictly by store administrators
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Users: Profiles & saved addresses
+    match /users/{userId} {
+      // Owner can read/update their profile; admin can manage all; authenticated riders can view customer names for delivery
+      allow read: if isOwner(userId) || isAdmin() || isRider();
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      // Owner can delete their own account (required by Google Play policy), and admin can delete
+      allow delete: if isOwner(userId) || isAdmin();
+
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Orders: Customers manage their own orders, riders fulfill assigned deliveries, admins manage all
+    match /orders/{orderId} {
+      // Reading allowed for admin, the ordering customer, or the assigned rider
+      allow read: if isAdmin() || 
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        (isAuthenticated() && (
+          resource.data.riderId == request.auth.uid || 
+          resource.data.riderId == ('rider_' + request.auth.uid) ||
+          (isRider() && (resource.data.riderPhone == getUserData().phone || resource.data.riderId == ('rider_' + getUserData().phone)))
+        ));
+      
+      // Creating allowed for authenticated customer for their own account
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      
+      // Updating allowed for admin, assigned rider (fulfillment), customer cancelling pending order, or customer rating
+      allow update: if isAdmin() ||
+        (isAuthenticated() && (
+          resource.data.riderId == request.auth.uid ||
+          (isRider() && (resource.data.riderPhone == getUserData().phone || resource.data.riderId == ('rider_' + getUserData().phone)))
+        )) ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.status == 'cancelled' && resource.data.status == 'pending') ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'reviewText', 'updatedAt']));
+        
+      // Deleting strictly reserved for admins
+      allow delete: if isAdmin();
+    }
+
+    // Live GPS Order Tracking
+    match /tracking/{orderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isRider() || isAuthenticated();
+    }
+
+    // Delivery Riders: Status & availability
+    match /riders/{riderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isAuthenticated();
+    }
+
+    // Marketing Banners & App Config
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Store Settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

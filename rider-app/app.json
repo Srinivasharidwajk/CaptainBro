@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Captain Bro Delivery Partner",
+    "slug": "captain-bro-rider",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "captainbrorider",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.captain.bro.rider"
+    },
+    "android": {
+      "package": "com.captain.bro.rider",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

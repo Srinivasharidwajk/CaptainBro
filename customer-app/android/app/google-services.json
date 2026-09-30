@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1097889464780",
+    "project_id": "captain-bro-app",
+    "storage_bucket": "captain-bro-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1097889464780:android:0aebf07dca2b21e0c8dd69",
+        "android_client_info": {
+          "package_name": "com.captain.bro"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1097889464780-a4mhfda4pud04gf21isfg4bb6o5tqu6t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSBWFpsOxdnZEPU0Xxw575IiLZLXUHm1E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1097889464780-a4mhfda4pud04gf21isfg4bb6o5tqu6t.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
