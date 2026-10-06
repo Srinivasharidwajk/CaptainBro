@@ -448,7 +448,7 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.card}>
       <View style={styles.cardImgContainer}>
-        <Image source={getImageUrl(product.image)} style={styles.cardImg} resizeMode="contain" />
+        <Image source={getImageUrl(product.image)} style={styles.cardImg} resizeMode="cover" />
         <TouchableOpacity
           style={styles.heartBadge}
           activeOpacity={0.8}
@@ -460,9 +460,22 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
           <Ionicons
             name={wishlisted ? 'heart' : 'heart-outline'}
             size={15}
-            color={wishlisted ? '#DC2626' : '#9CA3AF'}
+            color={wishlisted ? '#DC2626' : '#6B7280'}
           />
         </TouchableOpacity>
+
+        {/* Rating Badge at Bottom-Left */}
+        <View style={styles.ratingBadge}>
+          <FontAwesome name="star" size={10} color="#F59E0B" />
+          <Text style={styles.ratingText}>{product.rating || '4.8'}</Text>
+        </View>
+
+        {/* Weight Badge at Bottom-Right */}
+        {product.weight && (
+          <View style={styles.weightBadge}>
+            <Text style={styles.weightText}>{formatWeight(product.weight, quantity > 0 ? quantity : 1)}</Text>
+          </View>
+        )}
       </View>
       <View style={styles.cardInfo}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -486,14 +499,6 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
           <Text style={[styles.cardName, { flex: 1 }]} numberOfLines={1}>
             {product.name}
           </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
-          <Text style={styles.cardWeight}>{formatWeight(product.weight, quantity > 0 ? quantity : 1)}</Text>
-          <View style={styles.ratingInline}>
-            <FontAwesome name="star" size={10} color="#F59E0B" />
-            <Text style={styles.ratingText}>{product.rating || '4.8'}</Text>
-          </View>
         </View>
 
         <Text style={styles.cardCategory} numberOfLines={1}>
@@ -733,18 +738,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    padding: 6,
+    padding: 0,
+    overflow: 'hidden',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 3,
   },
   cardImgContainer: {
     width: '100%',
     aspectRatio: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -756,12 +761,12 @@ const styles = StyleSheet.create({
   },
   heartBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
@@ -770,6 +775,44 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     zIndex: 3,
+  },
+  ratingBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    zIndex: 3,
+  },
+  ratingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  weightBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    backgroundColor: '#334155',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 3,
+  },
+  weightText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   dietDotBorder: {
     width: 13,
@@ -785,56 +828,41 @@ const styles = StyleSheet.create({
     height: 5.5,
     borderRadius: 2.75,
   },
-  ratingInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  ratingText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  cardWeight: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#4B5563',
-  },
   cardInfo: {
-    marginTop: 6,
-    paddingHorizontal: 2,
+    marginTop: 8,
+    paddingHorizontal: 8,
   },
   cardName: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: '#111827',
   },
   cardCategory: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6B7280',
     textTransform: 'capitalize',
-    marginTop: 1,
+    marginTop: 2,
   },
   cardActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 8,
-    paddingHorizontal: 2,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
   cardPrice: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
     color: '#111827',
   },
   addBtn: {
     backgroundColor: '#8B0000',
-    padding: 8,
-    borderRadius: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   qtyCardControl: {
     flexDirection: 'row',
