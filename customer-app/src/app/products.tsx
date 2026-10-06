@@ -19,7 +19,7 @@ import BottomNavbar from '@/components/BottomNavbar';
 import { CartContext } from '@/context/CartContext';
 import { AuthContext } from '@/context/AuthContext';
 import { formatWeight } from '@/utils/helpers';
-import { getProductsDb, subscribeToProductsDb } from '@/firebase/database';
+import { getProductsDb, subscribeToProductsDb, sortProductsByPriority } from '@/firebase/database';
 
 // Core UI Branding Assets
 const LOCAL_IMAGES: Record<string, any> = {
@@ -33,15 +33,6 @@ const LOCAL_IMAGES: Record<string, any> = {
 
 const DEFAULT_FALLBACK_IMG = { uri: 'https://ik.imagekit.io/uuwqngqjh/New%20Folder/captainbroimages/ChatGPT%20Image%20Aug%2024%202026%2003_51_27%20P-100kb.jpg' };
 
-import cloudProductsList from '../utils/cloudProducts.json';
-const cloudImageLookup = new Map<string, string>();
-(cloudProductsList as any[]).forEach((p) => {
-  if (p.image && p.image.startsWith('http')) {
-    cloudImageLookup.set(p.id, p.image);
-    if (p.name) cloudImageLookup.set(p.name.trim().toLowerCase(), p.image);
-  }
-});
-
 const getImageUrl = (imageName: any) => {
   if (!imageName) return DEFAULT_FALLBACK_IMG;
   if (typeof imageName === 'number') return imageName;
@@ -53,12 +44,6 @@ const getImageUrl = (imageName: any) => {
     const filename = imageName.replace(/^.*[\\\/]/, '');
     if (LOCAL_IMAGES[filename]) {
       return LOCAL_IMAGES[filename];
-    }
-    if (cloudImageLookup.has(filename)) {
-      return { uri: cloudImageLookup.get(filename)! };
-    }
-    if (cloudImageLookup.has(imageName.trim().toLowerCase())) {
-      return { uri: cloudImageLookup.get(imageName.trim().toLowerCase())! };
     }
   }
   return DEFAULT_FALLBACK_IMG;
@@ -94,30 +79,18 @@ export default function ProductsScreen() {
 
   const mergeProducts = (dbProds: any[]) => {
     if (!dbProds || !Array.isArray(dbProds)) return [];
-    return [...dbProds].sort((a, b) => {
-      const isCustomA = String(a.id).startsWith('prod_');
-      const isCustomB = String(b.id).startsWith('prod_');
-      if (isCustomA && !isCustomB) return -1;
-      if (!isCustomA && isCustomB) return 1;
-      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return timeB - timeA;
-    });
+    return sortProductsByPriority(dbProds);
   };
 
   useEffect(() => {
     const timer = setTimeout(() => {
       getProductsDb().then((dbProds) => {
-        if (dbProds && dbProds.length > 0) {
-          setProducts(mergeProducts(dbProds));
-        }
+        setProducts(mergeProducts(dbProds || []));
       }).catch(() => { });
     }, 100);
 
     const unsub = subscribeToProductsDb((prods) => {
-      if (prods && prods.length > 0) {
-        setProducts(mergeProducts(prods));
-      }
+      setProducts(mergeProducts(prods || []));
     });
 
     return () => {
@@ -148,24 +121,35 @@ export default function ProductsScreen() {
   };
 
   const isProductInCat = (product: any, catId: string) => {
-    const c = (product.category || '').toLowerCase();
-    const idNum = parseInt(product.id?.substring(1) || '0');
-    if (catId === 'meat') return ['meat', 'chicken', 'mutton', 'fish', 'prawns', 'seafood'].includes(c);
-    if (catId === 'our-products') {
-      if (['home-foods', 'home foods', 'sweets', 'snacks', 'pickles', 'pickle', 'meat', 'chicken', 'mutton', 'fish', 'prawns', 'vegetables', 'fruits'].includes(c)) return false;
-      const name = (product.name || '').toLowerCase();
-      if (name.includes('sakinalu') || name.includes('ladoo') || name.includes('sunnundalu') || name.includes('ariselu') || name.includes('sarva pindi') || name.includes('murukulu') || name.includes('chegodi') || name.includes('pickle')) return false;
-      return ['our-products', 'our_brand', 'brand', 'signature'].includes(c) || (product.id?.startsWith('p') && idNum >= 40 && idNum <= 74);
+    if (!product) return false;
+    const c = (product.category || '').toLowerCase().trim();
+    if (c === catId.toLowerCase()) return true;
+
+    if (catId === 'meat') {
+      return ['meat', 'chicken', 'mutton', 'fish', 'prawns', 'seafood', 'fresh meat & seafood'].includes(c);
     }
-    if (catId === 'vegetables') return ['vegetables', 'veg', 'greens'].includes(c);
-    if (catId === 'fruits') return ['fruits', 'fruit'].includes(c);
-    if (catId === 'grocery') return ['grocery', 'groceries', 'cooking essentials', 'eggs', 'dairy', 'staples'].includes(c);
-    if (catId === 'pickles') return ['pickles', 'pickle'].includes(c);
-    if (catId === 'home-foods') return ['home-foods', 'home foods', 'sweets', 'snacks'].includes(c);
-    return c === catId;
+    if (catId === 'our-products') {
+      return ['our-products', 'our_brand', 'our products', 'brand', 'signature', 'our brand specials'].includes(c);
+    }
+    if (catId === 'vegetables') {
+      return ['vegetables', 'veg', 'greens', 'farm vegetables', 'farm fresh vegetables'].includes(c);
+    }
+    if (catId === 'fruits') {
+      return ['fruits', 'fruit', 'fresh fruits'].includes(c);
+    }
+    if (catId === 'grocery') {
+      return ['grocery', 'groceries', 'cooking essentials', 'eggs', 'dairy', 'staples', 'daily groceries'].includes(c);
+    }
+    if (catId === 'pickles') {
+      return ['pickles', 'pickle', 'homemade pickles'].includes(c);
+    }
+    if (catId === 'home-foods') {
+      return ['home-foods', 'home foods', 'sweets', 'snacks', 'home foods & telangana sweets'].includes(c);
+    }
+    return false;
   };
 
-  const filteredProducts = products.filter((product) => {
+  const rawFilteredProducts = products.filter((product) => {
     const activeCategories = categoryParam ? categoryParam.split(',') : [];
     let matchesCategory = activeCategories.length === 0;
     if (activeCategories.length > 0) {
@@ -178,6 +162,8 @@ export default function ProductsScreen() {
       product.category?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  const filteredProducts = sortProductsByPriority(rawFilteredProducts);
 
   const handleBack = () => {
     try {
@@ -280,7 +266,7 @@ export default function ProductsScreen() {
         {!categoryParam && !searchQuery ? (
           <View style={styles.groupedList}>
             {CATEGORIES.map((cat) => {
-              const catProducts = products.filter((p) => isProductInCat(p, cat.id));
+              const catProducts = sortProductsByPriority(products.filter((p) => isProductInCat(p, cat.id)));
 
               if (catProducts.length === 0) return null;
 
@@ -462,7 +448,7 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.card}>
       <View style={styles.cardImgContainer}>
-        <Image source={getImageUrl(product.image)} style={styles.cardImg} resizeMode="cover" />
+        <Image source={getImageUrl(product.image)} style={styles.cardImg} resizeMode="contain" />
         <TouchableOpacity
           style={styles.heartBadge}
           activeOpacity={0.8}
@@ -473,40 +459,10 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
         >
           <Ionicons
             name={wishlisted ? 'heart' : 'heart-outline'}
-            size={16}
-            color={wishlisted ? '#DC2626' : '#6B7280'}
+            size={15}
+            color={wishlisted ? '#DC2626' : '#9CA3AF'}
           />
         </TouchableOpacity>
-        {/* Red Dot for Meat / Non-Veg Pickles, Green Dot for Paneer / Veg Pickles */}
-        {(() => {
-          const c = (product.category || '').toLowerCase();
-          const n = (product.name || '').toLowerCase();
-          const isPickle = c.includes('pickle') || n.includes('pickle');
-          const isPickleNonVeg = isPickle && /chicken|mutton|prawn|fish|meat/i.test(n);
-          const isPickleVeg = isPickle && !isPickleNonVeg;
-          const isP = n.includes('paneer') || n.includes('panner') || n.includes('punner') || product.id === 'p24';
-          const isM = (['meat', 'chicken', 'mutton', 'fish', 'prawns'].includes(c) || /chicken|mutton|fish|prawn|meat|koramanu|salmon/i.test(n)) && !isP && !isPickle;
-          const isNonVeg = isM || isPickleNonVeg;
-          const isVeg = isP || isPickleVeg;
-          if (!isNonVeg && !isVeg) return null;
-          return (
-            <View style={styles.cardDietBadge}>
-              <View style={[styles.dietDotBorder, { borderColor: isVeg ? '#16A34A' : '#DC2626' }]}>
-                <View style={[styles.dietDotInner, { backgroundColor: isVeg ? '#16A34A' : '#DC2626' }]} />
-              </View>
-            </View>
-          );
-        })()}
-
-        <View style={styles.ratingBadge}>
-          <FontAwesome name="star" size={9} color="#F59E0B" />
-          <Text style={styles.ratingText}>{product.rating || '4.8'}</Text>
-        </View>
-        {product.weight && (
-          <View style={styles.weightBadge}>
-            <Text style={styles.weightText}>{formatWeight(product.weight, quantity > 0 ? quantity : 1)}</Text>
-          </View>
-        )}
       </View>
       <View style={styles.cardInfo}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -531,6 +487,15 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
             {product.name}
           </Text>
         </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
+          <Text style={styles.cardWeight}>{formatWeight(product.weight, quantity > 0 ? quantity : 1)}</Text>
+          <View style={styles.ratingInline}>
+            <FontAwesome name="star" size={10} color="#F59E0B" />
+            <Text style={styles.ratingText}>{product.rating || '4.8'}</Text>
+          </View>
+        </View>
+
         <Text style={styles.cardCategory} numberOfLines={1}>
           {getSubtextLabel(product)}
         </Text>
@@ -777,30 +742,34 @@ const styles = StyleSheet.create({
   },
   cardImgContainer: {
     width: '100%',
-    height: 140,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
+    aspectRatio: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   cardImg: {
     width: '100%',
     height: '100%',
   },
-  cardDietBadge: {
+  heartBadge: {
     position: 'absolute',
     top: 6,
-    left: 6,
-    backgroundColor: '#FFFFFF',
-    padding: 2,
-    borderRadius: 4,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
     shadowOffset: { width: 0, height: 1 },
-    zIndex: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    zIndex: 3,
   },
   dietDotBorder: {
     width: 13,
@@ -816,36 +785,24 @@ const styles = StyleSheet.create({
     height: 5.5,
     borderRadius: 2.75,
   },
-  ratingBadge: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  ratingInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
   },
   ratingText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#111827',
+    color: '#92400E',
   },
-  weightBadge: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(17, 24, 39, 0.75)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  weightText: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  cardWeight: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#4B5563',
   },
   cardInfo: {
     marginTop: 6,
@@ -899,22 +856,5 @@ const styles = StyleSheet.create({
     color: '#8B0000',
     minWidth: 14,
     textAlign: 'center',
-  },
-  heartBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
   },
 });

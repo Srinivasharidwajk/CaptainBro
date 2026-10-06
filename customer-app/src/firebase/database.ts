@@ -15,7 +15,7 @@ import { app, db } from './firebaseConfig';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { Platform } from 'react-native';
-import { UserRole, MOCK_PRODUCTS } from '../utils/constants';
+import { UserRole } from '../utils/constants';
 
 export interface UserProfile {
   uid: string;
@@ -788,6 +788,7 @@ export interface ProductData {
   price: number;
   category: string;
   weight?: string;
+  priority?: number;
   image?: string;
   additionalImages?: string[];
   videoUrl?: string;
@@ -801,57 +802,40 @@ export interface ProductData {
   updatedAt?: string;
 }
 
+export const sortProductsByPriority = (productsList: ProductData[]): ProductData[] => {
+  return [...productsList].sort((a, b) => {
+    // Check numeric priority: lower positive number has higher priority (1 is top first, 2 is second, etc.)
+    const pA = (typeof a.priority === 'number' && !isNaN(a.priority) && a.priority > 0)
+      ? a.priority
+      : (typeof (a as any).priority === 'string' && parseInt((a as any).priority, 10) > 0 ? parseInt((a as any).priority, 10) : 999999);
+    const pB = (typeof b.priority === 'number' && !isNaN(b.priority) && b.priority > 0)
+      ? b.priority
+      : (typeof (b as any).priority === 'string' && parseInt((b as any).priority, 10) > 0 ? parseInt((b as any).priority, 10) : 999999);
+
+    if (pA !== pB) {
+      return pA - pB;
+    }
+
+    // Secondary sort: most recently updated first
+    const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return timeB - timeA;
+  });
+};
+
 export const seedInitialProductsDb = async (): Promise<ProductData[]> => {
   try {
-    for (const prod of MOCK_PRODUCTS) {
-      await setDoc(doc(db, 'products', prod.id), {
-        ...prod,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    }
     const snap = await getDocs(collection(db, 'products'));
     const list: ProductData[] = [];
     snap.forEach((d) => list.push({ id: d.id, ...d.data() } as ProductData));
-    return list;
+    return sortProductsByPriority(list);
   } catch (err) {
-    console.error('Error seeding initial products to Firestore:', err);
-    return MOCK_PRODUCTS as any;
+    console.error('Error fetching initial products from Firestore:', err);
+    return [];
   }
 };
 
-
-import cloudProductsData from '../utils/cloudProducts.json';
-
-const cloudProductMap = new Map<string, any>();
-(cloudProductsData as any[]).forEach((p) => {
-  cloudProductMap.set(p.id, p);
-  if (p.name) cloudProductMap.set(p.name.trim().toLowerCase(), p);
-});
-
 export const enrichProductWithCloudImage = (product: ProductData): ProductData => {
-  if (product.image && (product.image.startsWith('http') || product.image.startsWith('data:image'))) {
-    return product;
-  }
-  const matchById = cloudProductMap.get(product.id);
-  if (matchById?.image && matchById.image.startsWith('http')) {
-    return {
-      ...product,
-      image: matchById.image,
-      additionalImages: matchById.additionalImages && matchById.additionalImages.length > 0 ? matchById.additionalImages : product.additionalImages,
-      recipeVideos: matchById.recipeVideos || (product as any).recipeVideos,
-      frequentlyBought: matchById.frequentlyBought || (product as any).frequentlyBought
-    };
-  }
-  const matchByName = product.name ? cloudProductMap.get(product.name.trim().toLowerCase()) : null;
-  if (matchByName?.image && matchByName.image.startsWith('http')) {
-    return {
-      ...product,
-      image: matchByName.image,
-      additionalImages: matchByName.additionalImages && matchByName.additionalImages.length > 0 ? matchByName.additionalImages : product.additionalImages,
-      recipeVideos: matchByName.recipeVideos || (product as any).recipeVideos,
-      frequentlyBought: matchByName.frequentlyBought || (product as any).frequentlyBought
-    };
-  }
   return product;
 };
 
@@ -859,12 +843,12 @@ export const getProductByIdDb = async (productId: string): Promise<ProductData |
   try {
     const docSnap = await getDoc(doc(db, 'products', productId));
     if (docSnap.exists()) {
-      const liveData = { id: docSnap.id, ...docSnap.data() } as ProductData;
-      return enrichProductWithCloudImage(liveData);
+      return { id: docSnap.id, ...docSnap.data() } as ProductData;
     }
-  } catch (_) {}
-  const fallback = cloudProductMap.get(productId);
-  return (fallback as ProductData) || null;
+  } catch (error) {
+    console.warn('Error fetching product by id:', error);
+  }
+  return null;
 };
 
 export const subscribeToProductByIdDb = (productId: string, onUpdate: (prod: ProductData | null) => void) => {
@@ -874,14 +858,14 @@ export const subscribeToProductByIdDb = (productId: string, onUpdate: (prod: Pro
     (docSnap) => {
       if (docSnap.exists()) {
         const liveData = { id: docSnap.id, ...docSnap.data() } as ProductData;
-        onUpdate(enrichProductWithCloudImage(liveData));
+        onUpdate(liveData);
       } else {
-        const fallback = cloudProductMap.get(productId);
-        onUpdate((fallback as ProductData) || null);
+        onUpdate(null);
       }
     },
     (err) => {
       console.warn('Error subscribing to product by id:', err);
+      onUpdate(null);
     }
   );
 };
@@ -902,6 +886,13 @@ export const saveProductDb = async (product: Partial<ProductData> & { name: stri
     inStock: product.inStock !== false,
     updatedAt: new Date().toISOString()
   };
+
+  if (typeof (product as any).priority === 'number' || (typeof (product as any).priority === 'string' && (product as any).priority.trim() !== '')) {
+    const pVal = parseInt(String((product as any).priority), 10);
+    if (!isNaN(pVal) && pVal > 0) {
+      newProd.priority = pVal;
+    }
+  }
 
   if (product.videoUrl && typeof product.videoUrl === 'string' && product.videoUrl.trim()) {
     newProd.videoUrl = product.videoUrl.trim();
@@ -941,34 +932,18 @@ export const deleteProductDb = async (id: string): Promise<boolean> => {
 export const getProductsDb = async (): Promise<ProductData[]> => {
   try {
     const querySnapshot = await getDocs(collection(db, 'products'));
-    const productsMap = new Map<string, ProductData>();
+    const products: ProductData[] = [];
 
-    // 1. Seed base catalog from cloudProductsData so every image is restored
-    (cloudProductsData as any[]).forEach((cp) => {
-      productsMap.set(cp.id, cp as ProductData);
-    });
-
-    // 2. Overlay with live Firestore products and enrich missing images
     querySnapshot.forEach((docSnap) => {
       const liveData = { id: docSnap.id, ...docSnap.data() } as ProductData;
       const enriched = enrichProductWithCloudImage(liveData);
-      productsMap.set(docSnap.id, enriched);
+      products.push(enriched);
     });
 
-    const products = Array.from(productsMap.values());
-    products.sort((a, b) => {
-      const isCustomA = String(a.id).startsWith('prod_');
-      const isCustomB = String(b.id).startsWith('prod_');
-      if (isCustomA && !isCustomB) return -1;
-      if (!isCustomA && isCustomB) return 1;
-      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return timeB - timeA;
-    });
-    return products;
+    return sortProductsByPriority(products);
   } catch (error) {
     console.error('Error fetching products from Firestore:', error);
-    return (cloudProductsData as unknown as ProductData[]) || [];
+    return [];
   }
 };
 
@@ -976,33 +951,19 @@ export const subscribeToProductsDb = (callback: (products: ProductData[]) => voi
   return onSnapshot(
     collection(db, 'products'),
     (snapshot) => {
-      const productsMap = new Map<string, ProductData>();
-
-      (cloudProductsData as any[]).forEach((cp) => {
-        productsMap.set(cp.id, cp as ProductData);
-      });
+      const products: ProductData[] = [];
 
       snapshot.forEach((docSnap) => {
         const liveData = { id: docSnap.id, ...docSnap.data() } as ProductData;
         const enriched = enrichProductWithCloudImage(liveData);
-        productsMap.set(docSnap.id, enriched);
+        products.push(enriched);
       });
 
-      const products = Array.from(productsMap.values());
-      products.sort((a, b) => {
-        const isCustomA = String(a.id).startsWith('prod_');
-        const isCustomB = String(b.id).startsWith('prod_');
-        if (isCustomA && !isCustomB) return -1;
-        if (!isCustomA && isCustomB) return 1;
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-        return timeB - timeA;
-      });
-      callback(products);
+      callback(sortProductsByPriority(products));
     },
     (error) => {
       console.warn('Firestore products snapshot notice:', error.message);
-      callback(cloudProductsData as unknown as ProductData[]);
+      callback([]);
     }
   );
 };

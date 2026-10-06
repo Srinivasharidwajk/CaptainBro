@@ -50,6 +50,7 @@ export interface Product {
   price: number;
   originalPrice?: number;
   weight?: string;
+  priority?: number;
   category?: string;
   image?: string;
   additionalImages?: string[];
@@ -132,6 +133,7 @@ export default function ProductManager({ products }: ProductManagerProps) {
   const [formPrice, setFormPrice] = useState('');
   const [formOrigPrice, setFormOrigPrice] = useState('');
   const [formWeight, setFormWeight] = useState('');
+  const [formPriority, setFormPriority] = useState('');
   const [formStockQuantity, setFormStockQuantity] = useState('50');
   const [formCategory, setFormCategory] = useState('meat');
   const [formImage, setFormImage] = useState('');
@@ -162,6 +164,11 @@ export default function ProductManager({ products }: ProductManagerProps) {
     if (stockFilter === 'out_of_stock') matchesStock = isExplicitlyOutOfStock;
 
     return matchesCat && matchesSearch && matchesStock;
+  }).sort((a, b) => {
+    const pA = typeof a.priority === 'number' && a.priority > 0 ? a.priority : (typeof (a as any).priority === 'string' && parseInt((a as any).priority, 10) > 0 ? parseInt((a as any).priority, 10) : 999999);
+    const pB = typeof b.priority === 'number' && b.priority > 0 ? b.priority : (typeof (b as any).priority === 'string' && parseInt((b as any).priority, 10) > 0 ? parseInt((b as any).priority, 10) : 999999);
+    if (pA !== pB) return pA - pB;
+    return a.name.localeCompare(b.name);
   });
 
   const handleUploadFile = async (file: File): Promise<string> => {
@@ -236,12 +243,27 @@ export default function ProductManager({ products }: ProductManagerProps) {
     }
   };
 
+  const handleUpdatePriority = async (product: Product, newPriorityStr: string) => {
+    try {
+      const refDoc = doc(db, 'products', product.id);
+      const val = newPriorityStr.trim() === '' ? null : parseInt(newPriorityStr.trim(), 10);
+      if (val !== null && isNaN(val)) return;
+      await updateDoc(refDoc, {
+        priority: val,
+        updatedAt: new Date(),
+      });
+    } catch (err: any) {
+      alert('Failed to update priority: ' + err.message);
+    }
+  };
+
   const handleOpenEdit = (p: Product) => {
     setEditingProduct(p);
     setFormName(p.name);
     setFormPrice(String(p.price));
     setFormOrigPrice(String(p.originalPrice || ''));
     setFormWeight(p.weight || '');
+    setFormPriority(p.priority !== undefined && p.priority !== null ? String(p.priority) : '');
     setFormStockQuantity(p.stockQuantity !== undefined ? String(p.stockQuantity) : (p.inStock !== false ? '25' : '0'));
     setFormCategory(p.category || 'meat');
     setFormImage(p.image || '');
@@ -260,6 +282,7 @@ export default function ProductManager({ products }: ProductManagerProps) {
     setFormPrice('');
     setFormOrigPrice('');
     setFormWeight('500g');
+    setFormPriority('');
     setFormStockQuantity('50');
     setFormCategory('meat');
     setFormImage('');
@@ -280,6 +303,7 @@ export default function ProductManager({ products }: ProductManagerProps) {
 
     const parsedStock = formStockQuantity.trim() !== '' ? Math.max(0, parseInt(formStockQuantity, 10)) : 0;
     const isItemInStock = parsedStock > 0;
+    const parsedPriority = formPriority.trim() !== '' ? parseInt(formPriority.trim(), 10) : undefined;
 
     try {
       const payload: any = {
@@ -287,6 +311,7 @@ export default function ProductManager({ products }: ProductManagerProps) {
         price: parseFloat(formPrice),
         originalPrice: formOrigPrice ? parseFloat(formOrigPrice) : parseFloat(formPrice) * 1.15,
         weight: formWeight.trim() || '500g',
+        priority: parsedPriority && !isNaN(parsedPriority) && parsedPriority > 0 ? parsedPriority : null,
         stockQuantity: parsedStock,
         inStock: isItemInStock,
         category: formCategory,
@@ -516,6 +541,7 @@ export default function ProductManager({ products }: ProductManagerProps) {
         <table className="data-table">
           <thead>
             <tr>
+              <th style={{ width: '80px', textAlign: 'center' }}>Rank #</th>
               <th>Product</th>
               <th>Category</th>
               <th>Weight</th>
@@ -538,6 +564,41 @@ export default function ProductManager({ products }: ProductManagerProps) {
 
               return (
                 <tr key={p.id}>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        defaultValue={p.priority ?? ''}
+                        key={`${p.id}-${p.priority}`}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          const currentVal = p.priority !== undefined && p.priority !== null ? String(p.priority) : '';
+                          if (val !== currentVal) {
+                            handleUpdatePriority(p, val);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        style={{
+                          width: '54px',
+                          textAlign: 'center',
+                          padding: '0.25rem 0.4rem',
+                          borderRadius: '6px',
+                          background: p.priority ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                          border: p.priority ? '1px solid #EF4444' : '1px solid rgba(255, 255, 255, 0.15)',
+                          color: p.priority ? '#F87171' : '#9CA3AF',
+                          fontWeight: 700,
+                          fontSize: '0.85rem'
+                        }}
+                        placeholder="-"
+                        title="Display Rank (1 = Top priority). Press Enter or click outside to save."
+                      />
+                    </div>
+                  </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <div
@@ -884,22 +945,39 @@ export default function ProductManager({ products }: ProductManagerProps) {
                 />
               </div>
 
-              {/* Category */}
-              <div className="form-group">
-                <label style={{ fontWeight: 700, color: '#F3F4F6' }}>Category</label>
-                <select
-                  className="form-input"
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                >
-                  <option value="meat">Fresh Meat & Seafood</option>
-                  <option value="pickles">Homemade Pickles</option>
-                  <option value="home-foods">Home Foods & Telangana Sweets</option>
-                  <option value="our-products">Our Brand Specials</option>
-                  <option value="vegetables">Farm Fresh Vegetables</option>
-                  <option value="fruits">Fresh Fruits</option>
-                  <option value="grocery">Daily Groceries</option>
-                </select>
+              {/* Category & Display Priority */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontWeight: 700, color: '#F3F4F6' }}>Category</label>
+                  <select
+                    className="form-input"
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value)}
+                  >
+                    <option value="meat">Fresh Meat & Seafood</option>
+                    <option value="pickles">Homemade Pickles</option>
+                    <option value="home-foods">Home Foods & Telangana Sweets</option>
+                    <option value="our-products">Our Brand Specials</option>
+                    <option value="vegetables">Farm Fresh Vegetables</option>
+                    <option value="fruits">Fresh Fruits</option>
+                    <option value="grocery">Daily Groceries</option>
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label style={{ fontWeight: 700, color: '#F3F4F6', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Display Rank / Priority</span>
+                    <span style={{ fontSize: '0.72rem', color: '#38BDF8' }}>1 = Top on App</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-input"
+                    placeholder="e.g. 1 (Top), 2, 3..."
+                    value={formPriority}
+                    onChange={(e) => setFormPriority(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Price, Original Price, Weight, Stock Quantity 2x2 Grid */}

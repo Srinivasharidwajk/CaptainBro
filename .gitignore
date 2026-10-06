@@ -40,3 +40,6 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+.firebase/
+**/.firebase/
+*.zip

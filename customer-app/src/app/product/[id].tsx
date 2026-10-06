@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
@@ -33,15 +34,6 @@ const LOCAL_IMAGES: Record<string, any> = {
 
 const DEFAULT_FALLBACK_IMG = { uri: 'https://ik.imagekit.io/uuwqngqjh/New%20Folder/captainbroimages/ChatGPT%20Image%20Aug%2024%202026%2003_51_27%20P-100kb.jpg' };
 
-import cloudProductsList from '../../utils/cloudProducts.json';
-const cloudImageLookup = new Map<string, string>();
-(cloudProductsList as any[]).forEach((p) => {
-  if (p.image && p.image.startsWith('http')) {
-    cloudImageLookup.set(p.id, p.image);
-    if (p.name) cloudImageLookup.set(p.name.trim().toLowerCase(), p.image);
-  }
-});
-
 const getImageUrl = (imageName: any) => {
   if (!imageName) return DEFAULT_FALLBACK_IMG;
   if (typeof imageName === 'number') return imageName;
@@ -54,12 +46,6 @@ const getImageUrl = (imageName: any) => {
     if (LOCAL_IMAGES[filename]) {
       return LOCAL_IMAGES[filename];
     }
-    if (cloudImageLookup.has(filename)) {
-      return { uri: cloudImageLookup.get(filename)! };
-    }
-    if (cloudImageLookup.has(imageName.trim().toLowerCase())) {
-      return { uri: cloudImageLookup.get(imageName.trim().toLowerCase())! };
-    }
   }
   return DEFAULT_FALLBACK_IMG;
 };
@@ -70,8 +56,6 @@ const formatPrice = (price: any) => {
   const safePrice = !isNaN(num) ? num : 0;
   return `₹${safePrice}`;
 };
-
-
 
 const getProductGallery = (product: any): string[] => {
   if (!product) return ['fooditems.png'];
@@ -85,90 +69,12 @@ const getProductGallery = (product: any): string[] => {
   return [primary];
 };
 
-const ALL_PRODUCTS_LIST: any[] = [
-  { id: 'p1', name: 'Tender Chicken Curry Cut', category: 'chicken', price: 160, weight: '500g', image: 'chicken-category.png', rating: 4.8 },
-  { id: 'p18', name: 'Fresh Chicken Boneless', category: 'chicken', price: 230, weight: '500g', image: 'chicken-category.png', rating: 4.9 },
-  { id: 'p19', name: 'Fresh Chicken Drumsticks', category: 'chicken', price: 210, weight: '500g', image: 'chicken-category.png', rating: 4.8 },
-  { id: 'p20', name: 'Juicy Chicken Wings', category: 'chicken', price: 140, weight: '500g', image: 'chicken-category.png', rating: 4.7 },
-  { id: 'p2', name: 'Premium Goat Mutton', category: 'mutton', price: 420, weight: '500g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p21', name: 'Mutton Boneless Cuts', category: 'mutton', price: 560, weight: '500g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p34', name: 'Premium Mutton Keema', category: 'mutton', price: 450, weight: '500g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p35', name: 'Mutton Soup Bones', category: 'mutton', price: 250, weight: '500g', image: 'fooditems.png', rating: 4.6 },
-  { id: 'p3', name: 'Fresh Koramanu Fish', category: 'fish', price: 380, weight: '1000g', image: 'fooditems.png', rating: 4.7 },
-  { id: 'p22', name: 'Rava Fish Fry Cut', category: 'fish', price: 200, weight: '500g', image: 'fooditems.png', rating: 4.6 },
-  { id: 'p31', name: 'Premium Salmon Fillet', category: 'fish', price: 650, weight: '250g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p4', name: 'Fresh Prawns', category: 'prawns', price: 200, weight: '500g', image: 'fooditems.png', rating: 4.6 },
-  { id: 'p32', name: 'Medium De-veined Prawns', category: 'prawns', price: 220, weight: '500g', image: 'fooditems.png', rating: 4.7 },
-  { id: 'p5', name: 'Organic Farm Onions', category: 'vegetables', price: 35, weight: '1kg', image: 'onions.png', rating: 4.7 },
-  { id: 'p6', name: 'Fresh Green Chillies', category: 'vegetables', price: 15, weight: '250g', image: 'fooditems.png', rating: 4.6 },
-  { id: 'p7', name: 'Fresh Coriander Bunch', category: 'vegetables', price: 9, weight: '1 bunch', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p8', name: 'Lemon Pack', category: 'vegetables', price: 15, weight: '4 pcs', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p9', name: 'Premium Basmati Rice', category: 'grocery', price: 65, weight: '1kg', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p10', name: 'Refined Sunflower Oil', category: 'grocery', price: 140, weight: '1L', image: 'cooking-oil.png', rating: 4.8 },
-  { id: 'p11', name: 'Fresh Thick Curd Cup', category: 'grocery', price: 20, weight: '500g', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p13', name: 'Fresh Ginger Garlic Paste', category: 'grocery', price: 35, weight: '100g', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p14', name: 'Fresh Mint Leaves Bunch', category: 'vegetables', price: 9, weight: '1 bunch', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p15', name: 'All in One Masala Powder', category: 'grocery', price: 150, weight: '250g', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p23', name: 'Bananas', category: 'fruits', price: 60, weight: '1 dozen', image: 'fruits-category.png', rating: 4.8 },
-  { id: 'p24', name: 'Fresh Malai Paneer', category: 'meat', price: 150, weight: '500g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p25', name: 'Fresh Apple', category: 'fruits', price: 99, weight: '1kg', image: 'fruits-category.png', rating: 4.8 },
-  { id: 'p26', name: 'Organic Papaya', category: 'fruits', price: 50, weight: '1 pc', image: 'fruits-category.png', rating: 4.7 },
-  { id: 'p27', name: 'Pomegranate', category: 'fruits', price: 120, weight: '1kg', image: 'fruits-category.png', rating: 4.8 },
-  { id: 'p28', name: 'Sweet Grapes', category: 'fruits', price: 90, weight: '500g', image: 'fruits-category.png', rating: 4.6 },
-  { id: 'p36', name: 'Homestyle Mango Pickle', category: 'pickles', price: 180, weight: '250g', image: 'pickles-category.png', rating: 4.9 },
-  { id: 'p37', name: 'Spicy Tomato Pickle', category: 'pickles', price: 120, weight: '250g', image: 'pickles-category.png', rating: 4.8 },
-  { id: 'p38', name: 'Special Chicken Pickle', category: 'pickles', price: 290, weight: '250g', image: 'pickles-category.png', rating: 4.9 },
-  { id: 'p75', name: 'Spicy Lemon Pickle', category: 'pickles', price: 110, weight: '250g', image: 'pickles-category.png', rating: 4.7 },
-  { id: 'p76', name: 'Special Garlic Pickle', category: 'pickles', price: 130, weight: '250g', image: 'pickles-category.png', rating: 4.8 },
-  { id: 'p77', name: 'Authentic Ginger Pickle', category: 'pickles', price: 125, weight: '250g', image: 'pickles-category.png', rating: 4.8 },
-  { id: 'p78', name: 'Andhra Gongura Pickle', category: 'pickles', price: 120, weight: '250g', image: 'pickles-category.png', rating: 4.9 },
-  { id: 'p79', name: 'Spicy Mutton Pickle', category: 'pickles', price: 380, weight: '250g', image: 'pickles-category.png', rating: 4.9 },
-  { id: 'p40', name: 'Captain Bro Chilli Powder', category: 'our-products', price: 145, weight: '500g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p41', name: 'Captain Bro Turmeric Powder', category: 'our-products', price: 140, weight: '500g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p42', name: 'Captain Bro Dhanaya Powder', category: 'our-products', price: 125, weight: '500g', image: 'our-brand.png', rating: 4.8 },
-  { id: 'p43', name: 'Captain Bro Natural Sugar Deshi', category: 'our-products', price: 70, weight: '500g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p44', name: 'Captain Bro Natural Jaggery (Bellam)', category: 'our-products', price: 110, weight: '500g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p45', name: 'Captain Bro General Gravy Powder', category: 'our-products', price: 195, weight: '250g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p46', name: 'Captain Bro All in One Masala Powder', category: 'our-products', price: 150, weight: '250g', image: 'our-brand.png', rating: 4.8 },
-  { id: 'p47', name: 'Captain Bro Milkshake Powder', category: 'our-products', price: 210, weight: '250g', image: 'our-brand.png', rating: 4.8 },
-  { id: 'p48', name: 'Captain Bro Herbal Face Pack', category: 'our-products', price: 180, weight: '100g', image: 'our-brand.png', rating: 4.8 },
-  { id: 'p49', name: 'Captain Bro Premium Dry Fruits Mix', category: 'our-products', price: 350, weight: '250g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p50', name: 'Captain Bro Grooming Face Pack for Men', category: 'our-products', price: 190, weight: '100g', image: 'our-brand.png', rating: 4.7 },
-  { id: 'p51', name: 'Captain Bro Gentle Face Pack for Kids', category: 'our-products', price: 160, weight: '100g', image: 'our-brand.png', rating: 4.8 },
-  { id: 'p52', name: 'Captain Bro Natural Protein Shake Powder', category: 'our-products', price: 450, weight: '500g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p53', name: 'Captain Bro Cold Pressed Groundnut Oil (1L)', category: 'our-products', price: 290, weight: '1L', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p54', name: 'Captain Bro Cold Pressed Groundnut Oil (500ml)', category: 'our-products', price: 160, weight: '500ml', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p55', name: 'Captain Bro Cold Pressed Groundnut Oil (250ml)', category: 'our-products', price: 90, weight: '250ml', image: 'our-brand.png', rating: 4.8 },
-  { id: 'p56', name: 'Captain Bro Radiance Face Pack for Women', category: 'our-products', price: 195, weight: '100g', image: 'our-brand.png', rating: 4.9 },
-  { id: 'p81', name: 'Telangana Sakinalu', category: 'home-foods', price: 120, weight: '250g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p82', name: 'Telangana Sarva Pindi', category: 'home-foods', price: 80, weight: '2 pcs', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p83', name: 'Traditional Ariselu', category: 'home-foods', price: 140, weight: '250g', image: 'fooditems.png', rating: 4.9 },
-  { id: 'p84', name: 'Telangana Karijelu', category: 'home-foods', price: 110, weight: '250g', image: 'fooditems.png', rating: 4.7 },
-  { id: 'p85', name: 'Crunchy Murukulu', category: 'home-foods', price: 90, weight: '250g', image: 'fooditems.png', rating: 4.8 },
-  { id: 'p86', name: 'Spicy Chegodi', category: 'home-foods', price: 80, weight: '250g', image: 'fooditems.png', rating: 4.7 },
-];
-
-const mergeCatalogWithDb = (dbProds: any[]): any[] => {
-  if (!dbProds || !Array.isArray(dbProds) || dbProds.length === 0) {
-    return ALL_PRODUCTS_LIST;
-  }
-  const dbIds = new Set(dbProds.map((p) => String(p.id)));
-  const merged = [...dbProds];
-  ALL_PRODUCTS_LIST.forEach((item) => {
-    if (!dbIds.has(String(item.id))) {
-      merged.push(item);
-    }
-  });
-  return merged;
-};
-
 const findProductEverywhere = (searchId: string, list: any[]) => {
-  if (!searchId) return null;
+  if (!searchId || !Array.isArray(list)) return null;
   const sId = String(searchId);
 
-  // 1. Direct ID match in allProductsList or static catalog
-  const direct = list.find((p: any) => String(p.id) === sId) ||
-                 ALL_PRODUCTS_LIST.find((p: any) => String(p.id) === sId);
+  // 1. Direct ID match in live list
+  const direct = list.find((p: any) => String(p.id) === sId);
   if (direct) return direct;
 
   // 2. Search inside frequentlyBought arrays of all products in list
@@ -233,7 +139,7 @@ export default function ProductDetailsScreen() {
   } : null;
 
   const scrollViewRef = useRef<ScrollView>(null);
-  const [allProductsList, setAllProductsList] = useState<any[]>(ALL_PRODUCTS_LIST);
+  const [allProductsList, setAllProductsList] = useState<any[]>([]);
   const [product, setProduct] = useState<any>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -251,10 +157,9 @@ export default function ProductDetailsScreen() {
       scrollViewRef.current?.scrollTo({ y: 0, animated: false });
     } catch (_) {}
 
-    // Immediately resolve local product so UI shows requested product without waiting
-    const localMatch = findProductEverywhere(String(id), allProductsList) || fallbackFromParams;
-    if (localMatch) {
-      setProduct(localMatch);
+    // Immediately resolve local product if passed via params
+    if (fallbackFromParams) {
+      setProduct(fallbackFromParams);
     }
 
     getProductByIdDb(id).then((docProd) => {
@@ -265,9 +170,8 @@ export default function ProductDetailsScreen() {
 
     getProductsDb().then((dbProds) => {
       if (isMounted && dbProds && dbProds.length > 0) {
-        const merged = mergeCatalogWithDb(dbProds);
-        setAllProductsList(merged);
-        const match = findProductEverywhere(String(id), merged);
+        setAllProductsList(dbProds);
+        const match = findProductEverywhere(String(id), dbProds);
         if (match) setProduct(match);
       }
     }).catch(() => { });
@@ -280,9 +184,8 @@ export default function ProductDetailsScreen() {
 
     const unsubAll = subscribeToProductsDb((prods) => {
       if (isMounted && prods && prods.length > 0) {
-        const merged = mergeCatalogWithDb(prods);
-        setAllProductsList(merged);
-        const match = findProductEverywhere(String(id), merged);
+        setAllProductsList(prods);
+        const match = findProductEverywhere(String(id), prods);
         if (match) setProduct(match);
       }
     });
@@ -297,9 +200,7 @@ export default function ProductDetailsScreen() {
   // If product state is for a different id, fallback to finding by id immediately
   const activeProduct = (product && String(product.id) === String(id))
     ? product
-    : (findProductEverywhere(String(id), allProductsList) ||
-       fallbackFromParams ||
-       ALL_PRODUCTS_LIST[0]);
+    : (findProductEverywhere(String(id), allProductsList) || fallbackFromParams);
 
   const gallery = getProductGallery(activeProduct);
   const currentDisplayImage = gallery[selectedImageIndex] || activeProduct?.image;
@@ -355,8 +256,7 @@ export default function ProductDetailsScreen() {
     if (activeProduct?.frequentlyBought && Array.isArray(activeProduct.frequentlyBought) && activeProduct.frequentlyBought.length > 0) {
       return activeProduct.frequentlyBought.map((fItem: any, idx: number) => {
         if (typeof fItem === 'string') {
-          const found = allProductsList.find((p) => String(p.id) === String(fItem)) ||
-                        ALL_PRODUCTS_LIST.find((p) => String(p.id) === String(fItem));
+          const found = allProductsList.find((p) => String(p.id) === String(fItem));
           if (found) return found;
           return {
             id: fItem,
@@ -385,33 +285,22 @@ export default function ProductDetailsScreen() {
 
     const currentId = String(activeProduct?.id || id);
 
-    // Fresh Meat or Paneer: Show full complementary items list (all 11+ items)
+    // Fresh Meat or Paneer: Show complementary items from live admin products (grocery, spices, vegetables)
     if (isMeat || isPaneer) {
-      const fallbackMeatItems = [
-        { id: 'p10', name: 'Refined Sunflower Oil', price: 140, weight: '1L', image: 'cooking-oil.png', category: 'grocery' },
-        { id: 'p13', name: 'Fresh Ginger Garlic Paste', price: 35, weight: '100g', image: 'fooditems.png', category: 'grocery' },
-        { id: 'p5', name: 'Organic Farm Onions', price: 35, weight: '1kg', image: 'onions.png', category: 'vegetables' },
-        { id: 'p14', name: 'Fresh Mint Leaves Bunch', price: 9, weight: '1 bunch', image: 'fooditems.png', category: 'vegetables' },
-        { id: 'p6', name: 'Fresh Green Chillies', price: 15, weight: '250g', image: 'fooditems.png', category: 'vegetables' },
-        { id: 'p7', name: 'Fresh Coriander Bunch', price: 9, weight: '1 bunch', image: 'fooditems.png', category: 'vegetables' },
-        { id: 'p8', name: 'Lemon Pack (4 pcs)', price: 15, weight: '4 pcs', image: 'fooditems.png', category: 'vegetables' },
-        { id: 'p9', name: 'Premium Basmati Rice', price: 65, weight: '1kg', image: 'fooditems.png', category: 'grocery' },
-        { id: 'p11', name: 'Fresh Thick Curd Cup', price: 20, weight: '500g', image: 'fooditems.png', category: 'grocery' },
-        { id: 'p15', name: 'All in One Masala Powder', price: 150, weight: '250g', image: 'fooditems.png', category: 'grocery' },
-        { id: 'p40', name: 'Captain Bro Chilli Powder', price: 145, weight: '500g', image: 'our-brand.png', category: 'our-products' },
-      ];
-
-      return fallbackMeatItems.filter((item) => String(item.id) !== currentId).map((item) => {
-        const liveMatch = allProductsList.find((p) => String(p.id) === String(item.id)) ||
-                          ALL_PRODUCTS_LIST.find((p) => String(p.id) === String(item.id));
-        return liveMatch || item;
+      return allProductsList.filter((p) => {
+        if (String(p.id) === currentId) return false;
+        const c = (p.category || '').toLowerCase();
+        const n = (p.name || '').toLowerCase();
+        return (
+          ['grocery', 'vegetables', 'our-products', 'our_brand'].includes(c) ||
+          /oil|ginger|garlic|onion|mint|chilli|coriander|lemon|rice|curd|masala/i.test(n)
+        );
       });
     }
 
     // Homemade Pickles: Show other homemade pickles
     if (isPickle) {
-      const source = allProductsList.length > 0 ? allProductsList : ALL_PRODUCTS_LIST;
-      return source.filter((p) => {
+      return allProductsList.filter((p) => {
         const c = (p.category || '').toLowerCase();
         const n = (p.name || '').toLowerCase();
         return (c.includes('pickle') || n.includes('pickle')) && String(p.id) !== currentId;
@@ -420,8 +309,7 @@ export default function ProductDetailsScreen() {
 
     // Telangana Home Foods & Sweets: Show other traditional home foods
     if (isHomeFood) {
-      const source = allProductsList.length > 0 ? allProductsList : ALL_PRODUCTS_LIST;
-      return source.filter((p) => {
+      return allProductsList.filter((p) => {
         const c = (p.category || '').toLowerCase();
         const n = (p.name || '').toLowerCase();
         const isHome = ['home-foods', 'home foods', 'sweets', 'snacks'].includes(c) || n.includes('sakinalu') || n.includes('sarva pindi') || n.includes('ariselu') || n.includes('karijelu') || n.includes('murukulu') || n.includes('chegodi');
@@ -431,8 +319,7 @@ export default function ProductDetailsScreen() {
 
     // Our Products: Show other brand products
     if (isOurProduct) {
-      const source = allProductsList.length > 0 ? allProductsList : ALL_PRODUCTS_LIST;
-      return source.filter((p) => {
+      return allProductsList.filter((p) => {
         const c = (p.category || '').toLowerCase();
         const n = (p.name || '').toLowerCase();
         const pIdNum = parseInt(p.id?.substring(1) || '0');
@@ -444,8 +331,7 @@ export default function ProductDetailsScreen() {
 
     // Fresh Vegetables: Show other vegetables
     if (isVeg) {
-      const source = allProductsList.length > 0 ? allProductsList : ALL_PRODUCTS_LIST;
-      return source.filter((p) => {
+      return allProductsList.filter((p) => {
         const c = (p.category || '').toLowerCase();
         return ['vegetables', 'veg', 'greens'].includes(c) && String(p.id) !== currentId;
       });
@@ -453,8 +339,7 @@ export default function ProductDetailsScreen() {
 
     // Fresh Fruits: Show other fruits
     if (isFruit) {
-      const source = allProductsList.length > 0 ? allProductsList : ALL_PRODUCTS_LIST;
-      return source.filter((p) => {
+      return allProductsList.filter((p) => {
         const c = (p.category || '').toLowerCase();
         return ['fruits', 'fruit'].includes(c) && String(p.id) !== currentId;
       });
@@ -666,6 +551,30 @@ export default function ProductDetailsScreen() {
     }
   };
 
+  if (!activeProduct) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.headerBar}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={handleBack}
+          >
+            <Ionicons name="arrow-back" size={22} color="#111827" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Product Details</Text>
+          <View style={{ width: 36 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <ActivityIndicator size="large" color="#8B0000" />
+          <Text style={{ marginTop: 12, fontSize: 14, color: '#6B7280' }}>Loading product details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -712,7 +621,7 @@ export default function ProductDetailsScreen() {
             style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
             onPress={() => setImageModalVisible(true)}
           >
-            <Image source={getImageUrl(currentDisplayImage)} style={styles.productImg} resizeMode="cover" />
+            <Image source={getImageUrl(currentDisplayImage)} style={styles.productImg} resizeMode="contain" />
             <View style={styles.zoomHintBadge}>
               <Ionicons name="expand-outline" size={11} color="#FFFFFF" />
               <Text style={styles.zoomHintText}>Tap to View Full Image</Text>
@@ -1110,8 +1019,8 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: 320,
-    maxHeight: 380,
+    aspectRatio: 1,
+    maxHeight: 480,
     backgroundColor: '#FFFFFF',
     position: 'relative',
     justifyContent: 'center',

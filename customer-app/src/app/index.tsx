@@ -23,9 +23,8 @@ import BottomNavbar from '@/components/BottomNavbar';
 import { CartContext } from '@/context/CartContext';
 import { AuthContext } from '@/context/AuthContext';
 import { formatWeight, loadState, saveState } from '@/utils/helpers';
-import { MOCK_PRODUCTS } from '@/utils/constants';
 
-import { getProductsDb, subscribeToProductsDb } from '@/firebase/database';
+import { getProductsDb, subscribeToProductsDb, sortProductsByPriority } from '@/firebase/database';
 import HeroBanners from '@/components/customer/HeroBanners';
 import CategoryGrid from '@/components/customer/CategoryGrid';
 import TestimonialsSection from '@/components/customer/TestimonialsSection';
@@ -56,15 +55,6 @@ const LOCAL_IMAGES: Record<string, any> = {
 
 const DEFAULT_FALLBACK_IMG = { uri: 'https://ik.imagekit.io/uuwqngqjh/New%20Folder/captainbroimages/ChatGPT%20Image%20Aug%2024%202026%2003_51_27%20P-100kb.jpg' };
 
-import cloudProductsList from '../utils/cloudProducts.json';
-const cloudImageLookup = new Map<string, string>();
-(cloudProductsList as any[]).forEach((p) => {
-  if (p.image && p.image.startsWith('http')) {
-    cloudImageLookup.set(p.id, p.image);
-    if (p.name) cloudImageLookup.set(p.name.trim().toLowerCase(), p.image);
-  }
-});
-
 const getImageUrl = (imageName: any) => {
   if (!imageName) return DEFAULT_FALLBACK_IMG;
   if (typeof imageName === 'number') return imageName;
@@ -76,12 +66,6 @@ const getImageUrl = (imageName: any) => {
     const filename = imageName.replace(/^.*[\\\/]/, '');
     if (LOCAL_IMAGES[filename]) {
       return LOCAL_IMAGES[filename];
-    }
-    if (cloudImageLookup.has(filename)) {
-      return { uri: cloudImageLookup.get(filename)! };
-    }
-    if (cloudImageLookup.has(imageName.trim().toLowerCase())) {
-      return { uri: cloudImageLookup.get(imageName.trim().toLowerCase())! };
     }
   }
   return DEFAULT_FALLBACK_IMG;
@@ -242,7 +226,7 @@ const TESTIMONIALS = [
 export default function HomeScreen() {
   const router = useRouter();
   const { cartCount } = useContext(CartContext);
-  const [products, setProducts] = useState<any[]>(MOCK_PRODUCTS);
+  const [products, setProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -304,31 +288,19 @@ export default function HomeScreen() {
 
   const mergeProducts = (dbProds: any[]) => {
     if (!dbProds || !Array.isArray(dbProds)) return [];
-    return [...dbProds].sort((a, b) => {
-      const isCustomA = String(a.id).startsWith('prod_');
-      const isCustomB = String(b.id).startsWith('prod_');
-      if (isCustomA && !isCustomB) return -1;
-      if (!isCustomA && isCustomB) return 1;
-      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return timeB - timeA;
-    });
+    return sortProductsByPriority(dbProds);
   };
 
   useEffect(() => {
     // Non-blocking background sync for Firestore product catalog updates
     const timer = setTimeout(() => {
       getProductsDb().then((prods) => {
-        if (prods && prods.length > 0) {
-          setProducts(mergeProducts(prods));
-        }
+        setProducts(mergeProducts(prods || []));
       }).catch(() => { });
     }, 100);
 
     const unsub = subscribeToProductsDb((prods) => {
-      if (prods && prods.length > 0) {
-        setProducts(mergeProducts(prods));
-      }
+      setProducts(mergeProducts(prods || []));
     });
 
     return () => {
@@ -379,109 +351,87 @@ export default function HomeScreen() {
     }
   };
 
-  const findProductByMatch = (id: string, searchKeywords: string[], defaultFallback?: any) => {
+  const findProductByMatch = (id: string, searchKeywords: string[]) => {
     return (
       products.find((p) => p.id === id) ||
       products.find((p) => {
         const nameLower = (p.name || '').toLowerCase();
         return searchKeywords.some((kw) => nameLower.includes(kw));
-      }) ||
-      defaultFallback
+      })
     );
   };
 
-  const topFourRecommendations = [
-    findProductByMatch('p40', ['chilli powder', 'mirchi', 'chilli', 'karam'], {
-      id: 'p40',
-      name: 'Chilli Powder',
-      category: 'our-products',
-      price: 145,
-      weight: '500g',
-      image: 'our-brand.png',
-      description: 'Pure and authentic spice powder from Captain Bro.',
-      rating: 4.9,
-      inStock: true,
-    }),
-    findProductByMatch('p1', ['chicken curry', 'chicken', 'curry cut', 'tender chicken'], {
-      id: 'p1',
-      name: 'Tender Chicken Curry Cut',
-      category: 'meat',
-      price: 160,
-      weight: '500g',
-      image: 'chicken-category.png',
-      description: 'Fresh, skinless, bone-in chicken curry cut sourced directly from local farms.',
-      rating: 4.8,
-      inStock: true,
-    }),
-    findProductByMatch('p24', ['paneer', 'panner', 'malai paneer', 'punner'], {
-      id: 'p24',
-      name: 'Fresh Malai Paneer',
-      category: 'meat',
-      price: 150,
-      weight: '500g',
-      image: 'fooditems.png',
-      description: 'Fresh, rich, and creamy malai paneer cubes prepared daily with 100% pure milk.',
-      rating: 4.9,
-      inStock: true,
-    }),
-    findProductByMatch('prod_1788002158982_7brq', ['kerala masala', 'kerala', 'masala powder', 'kerala masala powder'], {
-      id: 'prod_1788002158982_7brq',
-      name: 'Kerala Masala Powder',
-      category: 'our-products',
-      price: 90,
-      weight: '250g',
-      image: 'https://firebasestorage.googleapis.com/v0/b/captain-bro-app.firebasestorage.app/o/captain-bro-kerala-masala%20(1)%20(1).jpg?alt=media&token=79c4a2b1-5118-4e0f-81d4-0242a3af563f',
-      description: 'Kerala Masala Powder • Our Brand Products',
-      rating: 4.8,
-      inStock: true,
-    }),
+  const matchedPicks = [
+    findProductByMatch('p40', ['chilli powder', 'mirchi', 'chilli', 'karam']),
+    findProductByMatch('p1', ['chicken curry', 'chicken', 'curry cut', 'tender chicken']),
+    findProductByMatch('p24', ['paneer', 'panner', 'malai paneer', 'punner']),
+    findProductByMatch('prod_1788002158982_7brq', ['kerala masala', 'kerala', 'masala powder', 'kerala masala powder']),
   ].filter(Boolean);
+
+  const topFourRecommendations = matchedPicks.length > 0
+    ? Array.from(new Set([...matchedPicks, ...products])).slice(0, 4)
+    : products.slice(0, 4);
 
   const filteredProducts = activeCategory
     ? products.filter((p) => isProductInCat(p, activeCategory))
     : topFourRecommendations;
 
   const isProductInCat = (p: any, catId: string) => {
+    if (!p) return false;
     const c = (p.category || '').toLowerCase().trim();
-    if (catId === 'meat') return ['meat', 'chicken', 'mutton', 'fish', 'prawns', 'seafood'].includes(c);
-    if (catId === 'our-products') {
-      if (['home-foods', 'home foods', 'sweets', 'snacks', 'pickles', 'pickle', 'meat', 'chicken', 'mutton', 'fish', 'prawns', 'vegetables', 'fruits'].includes(c)) return false;
-      const idNum = parseInt(p.id?.substring(1) || '0');
-      const name = (p.name || '').toLowerCase();
-      if (name.includes('sakinalu') || name.includes('ladoo') || name.includes('sunnundalu') || name.includes('ariselu') || name.includes('sarva pindi') || name.includes('murukulu') || name.includes('chegodi') || name.includes('pickle')) return false;
-      return ['our-products', 'our_brand', 'brand', 'signature'].includes(c) || (p.id?.startsWith('p') && idNum >= 40 && idNum <= 74);
+    if (c === catId.toLowerCase()) return true;
+
+    if (catId === 'meat') {
+      return ['meat', 'chicken', 'mutton', 'fish', 'prawns', 'seafood', 'fresh meat & seafood'].includes(c);
     }
-    if (catId === 'vegetables') return ['vegetables', 'veg', 'greens'].includes(c);
-    if (catId === 'fruits') return ['fruits', 'fruit'].includes(c);
-    if (catId === 'grocery') return ['grocery', 'groceries', 'cooking essentials', 'eggs', 'dairy', 'staples'].includes(c);
-    if (catId === 'pickles') return ['pickles', 'pickle'].includes(c);
-    if (catId === 'home-foods') return ['home-foods', 'home foods', 'sweets', 'snacks'].includes(c);
-    return c === catId;
+    if (catId === 'our-products') {
+      return ['our-products', 'our_brand', 'our products', 'brand', 'signature', 'our brand specials'].includes(c);
+    }
+    if (catId === 'vegetables') {
+      return ['vegetables', 'veg', 'greens', 'farm vegetables', 'farm fresh vegetables'].includes(c);
+    }
+    if (catId === 'fruits') {
+      return ['fruits', 'fruit', 'fresh fruits'].includes(c);
+    }
+    if (catId === 'grocery') {
+      return ['grocery', 'groceries', 'cooking essentials', 'eggs', 'dairy', 'staples', 'daily groceries'].includes(c);
+    }
+    if (catId === 'pickles') {
+      return ['pickles', 'pickle', 'homemade pickles'].includes(c);
+    }
+    if (catId === 'home-foods') {
+      return ['home-foods', 'home foods', 'sweets', 'snacks', 'home foods & telangana sweets'].includes(c);
+    }
+    return false;
   };
 
   const getMeatPriority = (p: any) => {
+    if (typeof p.priority === 'number' && p.priority > 0) return p.priority;
+    if (typeof p.priority === 'string' && parseInt(p.priority, 10) > 0) return parseInt(p.priority, 10);
     const cat = (p.category || '').toLowerCase();
     const name = (p.name || '').toLowerCase();
     // 1. Primary Chicken
-    if (p.id === 'p1' || (cat === 'chicken' && (name.includes('curry cut') || name.includes('tender')))) return 1;
+    if (p.id === 'p1' || (cat === 'chicken' && (name.includes('curry cut') || name.includes('tender')))) return 1001;
     // 2. Primary Mutton
-    if (p.id === 'p2' || (cat === 'mutton' && (name.includes('goat') || name.includes('curry')))) return 2;
+    if (p.id === 'p2' || (cat === 'mutton' && (name.includes('goat') || name.includes('curry')))) return 1002;
     // 3. Primary Panner / Paneer
-    if (p.id === 'p24' || name.includes('paneer') || name.includes('panner')) return 3;
+    if (p.id === 'p24' || name.includes('paneer') || name.includes('panner')) return 1003;
     // 4. Primary Fish
-    if (p.id === 'p3' || (cat === 'fish' && (name.includes('koramanu') || name.includes('murrel')))) return 4;
+    if (p.id === 'p3' || (cat === 'fish' && (name.includes('koramanu') || name.includes('murrel')))) return 1004;
     // 5. Primary Prawns
-    if (p.id === 'p4' || (cat === 'prawns' && (name.includes('fresh prawns') || name.includes('jumbo')))) return 5;
+    if (p.id === 'p4' || (cat === 'prawns' && (name.includes('fresh prawns') || name.includes('jumbo')))) return 1005;
     // 6. All remaining Chicken types
-    if (cat === 'chicken' || name.includes('chicken')) return 6;
+    if (cat === 'chicken' || name.includes('chicken')) return 1006;
     // 7. All remaining Mutton types
-    if (cat === 'mutton' || name.includes('mutton')) return 7;
+    if (cat === 'mutton' || name.includes('mutton')) return 1007;
     // 8. All remaining Fish & Prawns types
-    if (cat === 'fish' || name.includes('fish') || cat === 'prawns' || name.includes('prawns')) return 8;
-    return 9;
+    if (cat === 'fish' || name.includes('fish') || cat === 'prawns' || name.includes('prawns')) return 1008;
+    return 1009;
   };
 
   const getOurBrandPriority = (p: any) => {
+    if (typeof p.priority === 'number' && p.priority > 0) return p.priority;
+    if (typeof p.priority === 'string' && parseInt(p.priority, 10) > 0) return parseInt(p.priority, 10);
     const name = (p.name || '').toLowerCase();
     const weight = (p.weight || '').toLowerCase();
     // 1. Groundnut Oil (1000ml / 1L)
@@ -489,57 +439,59 @@ export default function HomeScreen() {
       p.id === 'p53' ||
       p.id === 'p55' ||
       ((name.includes('groundnut') || name.includes('peanut')) && (weight.includes('1000') || weight.includes('1l') || name.includes('1000') || name.includes('1l') || name.includes('1000ml') || name.includes('1 litre')))
-    ) return 1;
+    ) return 1001;
     // 2. Chilli Powder
-    if (p.id === 'p40' || (name.includes('chilli') && name.includes('powder')) || name.includes('karam')) return 2;
+    if (p.id === 'p40' || (name.includes('chilli') && name.includes('powder')) || name.includes('karam')) return 1002;
     // 3. Turmeric Powder
-    if (p.id === 'p41' || (name.includes('turmeric') && name.includes('powder')) || name.includes('pasupu')) return 3;
+    if (p.id === 'p41' || (name.includes('turmeric') && name.includes('powder')) || name.includes('pasupu')) return 1003;
     // 4. Natural Sugar Deshi
-    if (p.id === 'p43' || name.includes('natural sugar') || name.includes('sugar deshi') || name.includes('deshi sugar') || name.includes('sugar')) return 4;
+    if (p.id === 'p43' || name.includes('natural sugar') || name.includes('sugar deshi') || name.includes('deshi sugar') || name.includes('sugar')) return 1004;
     // 5. Kerala Masala Powder
-    if (p.id === 'p45' || name.includes('kerala')) return 5;
+    if (p.id === 'p45' || name.includes('kerala')) return 1005;
     // 6. General Gravy Powder / All In One Masala
-    if (p.id === 'p46' || name.includes('gravy powder') || name.includes('gravy') || name.includes('all in one')) return 6;
+    if (p.id === 'p46' || name.includes('gravy powder') || name.includes('gravy') || name.includes('all in one')) return 1006;
     // 7. Natural Jaggery (Bellam)
-    if (p.id === 'p44' || name.includes('jaggery') || name.includes('bellam')) return 7;
+    if (p.id === 'p44' || name.includes('jaggery') || name.includes('bellam')) return 1007;
     // 8. Dhanaya / Coriander Powder
-    if (p.id === 'p42' || name.includes('dhanaya') || name.includes('coriander powder')) return 8;
+    if (p.id === 'p42' || name.includes('dhanaya') || name.includes('coriander powder')) return 1008;
     // 10. Groundnut Oil (500ml / other oil - Last)
-    if (p.id === 'p54' || name.includes('groundnut') || name.includes('peanut oil') || name.includes('oil')) return 10;
+    if (p.id === 'p54' || name.includes('groundnut') || name.includes('peanut oil') || name.includes('oil')) return 1010;
     // 9. Other brand products
-    return 9;
+    return 1009;
   };
 
   const getPicklePriority = (p: any) => {
+    if (typeof p.priority === 'number' && p.priority > 0) return p.priority;
+    if (typeof p.priority === 'string' && parseInt(p.priority, 10) > 0) return parseInt(p.priority, 10);
     const name = (p.name || '').toLowerCase();
     // 1. Mango Pickle
-    if (p.id === 'p36' || (name.includes('mango') && (name.includes('pickle') || name.includes('pachadi')))) return 1;
+    if (p.id === 'p36' || (name.includes('mango') && (name.includes('pickle') || name.includes('pachadi')))) return 1001;
     // 2. Chicken Pickle
-    if (p.id === 'p38' || (name.includes('chicken') && (name.includes('pickle') || name.includes('pachadi')))) return 2;
+    if (p.id === 'p38' || (name.includes('chicken') && (name.includes('pickle') || name.includes('pachadi')))) return 1002;
     // 3. Lemon Pickle
-    if (p.id === 'p37' || p.id === 'p75' || (name.includes('lemon') && (name.includes('pickle') || name.includes('pachadi'))) || name.includes('nimmakaya')) return 3;
+    if (p.id === 'p37' || p.id === 'p75' || (name.includes('lemon') && (name.includes('pickle') || name.includes('pachadi'))) || name.includes('nimmakaya')) return 1003;
     // 4. Chintakaya Pachadi / Pickle
-    if (name.includes('chintakaya') || name.includes('chinta') || name.includes('tamarind') || name.includes('chintha')) return 4;
+    if (name.includes('chintakaya') || name.includes('chinta') || name.includes('tamarind') || name.includes('chintha')) return 1004;
     // 5. Tomato Pickle
-    if (name.includes('tomato')) return 5;
+    if (name.includes('tomato')) return 1005;
     // 6. Gongura Pickle
-    if (name.includes('gongura')) return 6;
+    if (name.includes('gongura')) return 1006;
     // 7. Mutton Pickle
-    if (name.includes('mutton')) return 7;
+    if (name.includes('mutton')) return 1007;
     // 8. Other pickles
-    return 8;
+    return 1008;
   };
 
   const rawMeatProducts = products.filter((p) => isProductInCat(p, 'meat'));
   const meatProducts = [...rawMeatProducts].sort((a, b) => getMeatPriority(a) - getMeatPriority(b));
   const rawCaptainBroProducts = products.filter((p) => isProductInCat(p, 'our-products'));
   const captainBroProducts = [...rawCaptainBroProducts].sort((a, b) => getOurBrandPriority(a) - getOurBrandPriority(b));
-  const vegetables = products.filter((p) => isProductInCat(p, 'vegetables'));
-  const fruits = products.filter((p) => isProductInCat(p, 'fruits'));
-  const groceries = products.filter((p) => isProductInCat(p, 'grocery'));
+  const vegetables = sortProductsByPriority(products.filter((p) => isProductInCat(p, 'vegetables')));
+  const fruits = sortProductsByPriority(products.filter((p) => isProductInCat(p, 'fruits')));
+  const groceries = sortProductsByPriority(products.filter((p) => isProductInCat(p, 'grocery')));
   const rawPickles = products.filter((p) => isProductInCat(p, 'pickles'));
   const pickles = [...rawPickles].sort((a, b) => getPicklePriority(a) - getPicklePriority(b));
-  const homeFoods = products.filter((p) => isProductInCat(p, 'home-foods'));
+  const homeFoods = sortProductsByPriority(products.filter((p) => isProductInCat(p, 'home-foods')));
 
   const safeSearchQuery = typeof searchQuery === 'string' ? searchQuery : '';
 
@@ -880,7 +832,7 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={[styles.card, isOutOfStock && { opacity: 0.85 }]}>
       <View style={styles.cardImgContainer}>
-        <Image source={getImageUrl(product.image)} style={styles.cardImg} resizeMode="cover" />
+        <Image source={getImageUrl(product.image)} style={styles.cardImg} resizeMode="contain" />
         <TouchableOpacity
           style={styles.heartBadge}
           activeOpacity={0.8}
@@ -891,40 +843,10 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
         >
           <Ionicons
             name={wishlisted ? 'heart' : 'heart-outline'}
-            size={16}
-            color={wishlisted ? '#DC2626' : '#6B7280'}
+            size={15}
+            color={wishlisted ? '#DC2626' : '#9CA3AF'}
           />
         </TouchableOpacity>
-        {/* Red Dot for Meat / Non-Veg Pickles, Green Dot for Paneer / Veg Pickles */}
-        {(() => {
-          const c = (product.category || '').toLowerCase();
-          const n = (product.name || '').toLowerCase();
-          const isPickle = c.includes('pickle') || n.includes('pickle');
-          const isPickleNonVeg = isPickle && /chicken|mutton|prawn|fish|meat/i.test(n);
-          const isPickleVeg = isPickle && !isPickleNonVeg;
-          const isP = n.includes('paneer') || n.includes('panner') || n.includes('punner') || product.id === 'p24';
-          const isM = (['meat', 'chicken', 'mutton', 'fish', 'prawns'].includes(c) || /chicken|mutton|fish|prawn|meat|koramanu|salmon/i.test(n)) && !isP && !isPickle;
-          const isNonVeg = isM || isPickleNonVeg;
-          const isVeg = isP || isPickleVeg;
-          if (!isNonVeg && !isVeg) return null;
-          return (
-            <View style={styles.cardDietBadge}>
-              <View style={[styles.dietDotBorder, { borderColor: isVeg ? '#16A34A' : '#DC2626' }]}>
-                <View style={[styles.dietDotInner, { backgroundColor: isVeg ? '#16A34A' : '#DC2626' }]} />
-              </View>
-            </View>
-          );
-        })()}
-
-        <View style={styles.ratingBadge}>
-          <FontAwesome name="star" size={9} color="#F59E0B" />
-          <Text style={styles.ratingText}>{product.rating || '4.9'}</Text>
-        </View>
-        {product.weight && (
-          <View style={styles.weightBadge}>
-            <Text style={styles.weightText}>{formatWeight(product.weight, quantity > 0 ? quantity : 1)}</Text>
-          </View>
-        )}
       </View>
       <View style={styles.cardInfo}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -949,6 +871,15 @@ function ProductCard({ product, onPress }: { product: any; onPress: () => void }
             {product.name}
           </Text>
         </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
+          <Text style={styles.cardWeight}>{formatWeight(product.weight, quantity > 0 ? quantity : 1)}</Text>
+          <View style={styles.ratingInline}>
+            <FontAwesome name="star" size={10} color="#F59E0B" />
+            <Text style={styles.ratingText}>{product.rating || '4.9'}</Text>
+          </View>
+        </View>
+
         <Text style={styles.cardCategory} numberOfLines={1}>
           {getSubtextLabel(product)}
         </Text>
@@ -1260,13 +1191,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   horizontalCardWrapper: {
-    width: 165,
-    marginRight: 10,
+    width: 175,
+    marginRight: 12,
   },
   card: {
     width: '100%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     padding: 0,
@@ -1274,35 +1205,38 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 3,
   },
   cardImgContainer: {
     width: '100%',
-    height: 140,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 0,
+    aspectRatio: 1,
+    backgroundColor: '#FFFFFF',
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   cardImg: {
     width: '100%',
     height: '100%',
   },
-  cardDietBadge: {
+  heartBadge: {
     position: 'absolute',
-    top: 6,
-    left: 6,
-    backgroundColor: '#FFFFFF',
-    padding: 2,
-    borderRadius: 4,
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
     shadowOffset: { width: 0, height: 1 },
-    zIndex: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    zIndex: 3,
   },
   dietDotBorder: {
     width: 13,
@@ -1318,36 +1252,24 @@ const styles = StyleSheet.create({
     height: 5.5,
     borderRadius: 2.75,
   },
-  ratingBadge: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  ratingInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-  },
-  ratingText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  weightBadge: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(55, 65, 81, 0.9)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
     borderRadius: 4,
   },
-  weightText: {
-    fontSize: 10,
+  ratingText: {
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#92400E',
+  },
+  cardWeight: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
   },
   cardInfo: {
     marginTop: 6,
@@ -1549,22 +1471,5 @@ const styles = StyleSheet.create({
     color: '#8B0000',
     minWidth: 14,
     textAlign: 'center',
-  },
-  heartBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
   },
 });
